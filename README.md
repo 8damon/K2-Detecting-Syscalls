@@ -6,7 +6,7 @@
 
 ## SUMMARY
 
-The driver registers a few high-signal callbacks:
+The driver registers a few callbacks;
 
 - process creation
 - thread creation
@@ -17,34 +17,28 @@ When one of those events fires, `K2` walks the current user stack and checks:
 
 - whether the top user frame resolves into the real mapped `ntdll.dll`
 - whether the frame is inside the expected `Nt*` export set for that callback
-- whether the frame lands in a different `Nt*` export, which is a useful indirect-syscall signal
+- whether the frame lands in a different `Nt*` export 
 - whether the caller frame comes from executable private memory, writable+executable memory, or other non-image executable regions
 
-For object-handle callbacks that means allowing the legitimate creator syscalls as well. For example, a thread handle create can naturally arrive from `NtOpenThread`, `NtCreateThreadEx`, `NtCreateUserProcess`, or `ZwAlpcOpenSenderThread`, and a process handle create can legitimately come from `NtOpenProcess`, `NtCreateUserProcess`, or `ZwAlpcOpenSenderProcess`. Treating every non-`NtOpen*` path as malicious creates noise from normal WMI, CLR, CSRSS, CTF, and other Win32 activity.
+For object-handle callbacks that means allowing the legitimate creator syscalls as well. For example, a thread handle create can naturally arrive from `NtOpenThread`, `NtCreateThreadEx`, `NtCreateUserProcess`, or `ZwAlpcOpenSenderThread`, and a process handle create can legitimately come from `NtOpenProcess`, `NtCreateUserProcess`, or `ZwAlpcOpenSenderProcess`. Treating every non-`NtOpen*` path as malicious creates noise from normal WMI, CLR, CSRSS, CTF, and other Windows activity.
 
-The detections are logged to the kernel debugger with detailed reason strings and a short stack dump so they are easy to inspect in WinDbg.
-
-The driver also does a few practical hardening steps so the callbacks stay usable under load:
-
-- duplicate detections are rate-limited for a short window instead of being spammed continuously
-- `ntdll` / `win32u` module base lookups are cached per process to avoid repeated loader walks on hot paths
-- PE export parsing validates image RVAs before probing user memory
+The detections are logged to the kernel debugger and can be inspected in WinDbg (Didn't feel like implementing an IOCTL pane for a PoC).
 
 ## WHY?
 
-A lot of offensive syscall tooling leans on the same tired assumption:
+A lot of offensive syscall tooling still seems to think direct-syscalls are some magical bypass, executing `syscall` directly magically bypasses usermode hooks...
 
-- "If I avoid the import table, I disappear."
+Which yes, it does. But, the kernel?
 
-That assumption does not survive basic stack inspection.
-
-`SysWhispers`, `Hell's Gate`, and their endless descendants are useful examples of how operators try to bypass user-mode hooks, but they also produce recognizable execution patterns:
+`SysWhispers`, `Hell's Gate`, and their endless descendants are useful examples of how operators try to bypass user-mode hooks, which work but cause even more detections from within the kernel:
 
 - the syscall path does not begin in the expected `ntdll` stub
-- the stack points at a different `Nt*` export than the one being exercised
-- the call origin lives in private or suspicious executable memory rather than the real image-backed `ntdll`
 
-This PoC focuses on that gap. It is not trying to be a product, and it is not trying to "stop all syscall evasion." It is just a compact way to prove that these techniques are still observable when you look at the right things.
+Even in more advanced implementations, where the callstack is spoofed into `ntdll`;
+
+- the stack points at a different `Nt*` export than the one being exercised
+
+Or, in the case the tool gets the export correct, if its hooked the operator executes your hook anyway, and if they patch it any sufficient EDR should pick up on that instantly.
 
 ## BUILD
 
