@@ -2,11 +2,11 @@
 
 ![DBGXSHELL](./Media/DbgX.Shell.png)
 
-`K2` is a deliberately small kernel PoC for detecting direct-syscalls executed by frameworks such as SysWhispers (and children), HellsGate and frameworks using similar techniques.
+`K2` is a PoC for detecting direct-syscalls executed by frameworks such as SysWhispers (and children), HellsGate and frameworks using similar TTP's.
 
 ## SUMMARY
 
-The driver registers a few callbacks;
+The driver registers callbacks;
 
 - process creation
 - thread creation
